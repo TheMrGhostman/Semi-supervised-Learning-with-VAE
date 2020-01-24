@@ -181,7 +181,7 @@ class Trainer(nn.Module):
 	Function Trainer was made for easier training of Neural Networks for classification or regressin. 
 	Insted of defining whole trining precedure every time, it's now possible to do it in 2-3 lines of code.
 	"""
-	def __init__(self, model, optimizer, loss_function, scheduler=None, tensorboard=True, set_device=None, verbose=False):
+	def __init__(self, model, optimizer, loss_function, scheduler=None, tensorboard=True, set_device=None, model_name=None,verbose=False):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
@@ -197,7 +197,10 @@ class Trainer(nn.Module):
 
 		self.tensorboard = tensorboard
 		if self.tensorboard:
-			self.tb = SummaryWriter()
+			if model_name==None:
+				self.tb = SummaryWriter()
+			else:
+				self.tb = SummaryWriter(comment=model_name)
 
 		if set_device==None:
 			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -217,11 +220,13 @@ class Trainer(nn.Module):
 		"""
 		self.tb.add_scalar("Loss/train", tr_loss, epoch)
 		self.tb.add_scalar("Loss/validation", val_loss, epoch)
+		"""
 		for i in range(len(self.model.model)-1): # iteration through layers
 			self.tb.add_histogram(f"layer_{i}/wight", self.model.model[i].layer.weight, epoch)
 			self.tb.add_histogram(f"layer_{i}/bias", self.model.model[i].layer.bias, epoch)
 			self.tb.add_histogram(f"layer_{i}/wight_grad", self.model.model[i].layer.weight.grad, epoch)
 			self.tb.add_histogram(f"layer_{i}/bias_grad", self.model.model[i].layer.bias.grad, epoch)
+		"""
 		if acc!=None:
 			self.tb.add_scalar("Accurary/validation", acc, epoch)
 
@@ -250,9 +255,9 @@ class Trainer(nn.Module):
 				#=================log====================
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
-					if self.tensorboard:
+					#if self.tensorboard and epoch==0:
 						#self.tb.add_graph(self.model.model, train_sample)
-						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+(i+1)//print_every)
+						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+(i+1)//print_every)
 
 			validation_loss=0
 			with torch.no_grad():
