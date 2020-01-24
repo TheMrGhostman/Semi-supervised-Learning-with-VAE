@@ -5,6 +5,8 @@ import math
 import torch 
 import torch.nn as nn
 import torch.nn.functional as F 
+from torch.utils.tensorboard import SummaryWriter
+
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, f1_score
@@ -179,7 +181,7 @@ class Trainer(nn.Module):
 	Function Trainer was made for easier training of Neural Networks for classification or regressin. 
 	Insted of defining whole trining precedure every time, it's now possible to do it in 2-3 lines of code.
 	"""
-	def __init__(self, model, optimizer, loss_function, scheduler=None, set_device=None, verbose=False):
+	def __init__(self, model, optimizer, loss_function, scheduler=None, tensorboard=True, set_device=None, verbose=False):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
@@ -193,6 +195,10 @@ class Trainer(nn.Module):
 		self.optimizer = optimizer
 		self.scheduler = scheduler
 
+		self.tensorboard = tensorboard
+		if self.tensorboard:
+			self.tb = SummaryWriter()
+
 		if set_device==None:
 			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 		else:
@@ -200,30 +206,24 @@ class Trainer(nn.Module):
 		self.model.to(self.device)
 
 		self.loss_fn = loss_function
-		self.loss_history = {"train":[], "validation":[]}
+		self.loss_history = {"train":[], "validation":[], "val_accuracy":[]}
 		self.verbose = verbose
 		if self.verbose:
 			print(self.device) 
 
-	def evaluate_metrics(self, y_true, y_pred, metric, argmax=True, detach=False, decimals=3):
+	def tensorboard_save(self, epoch, tr_loss, val_loss, acc=None):
 		"""
-		: param y_true:		Data labels "the Ground Truth". 	
-		: param y_pred:		Output of model, predicted labels.
-		: param metric:		Metrices which we want to evaluate.
-							Options are "accuracy", "f1_score"	
+		function for saving informations to tensorboard
 		"""
-		output = {}
-		if detach:
-			y_pred = y_pred.cpu().detach()
-		if argmax:
-			y_pred = x.argmax(y_pred, axis=1)
-		if not isinstance(metric, list):
-			metric = [metric]
-		if "accuracy" in metric:
-			output["accuracy"] = round(accuracy_score(y_true, y_pred),decimals)
-		if "f1_score" in metric:
-			output["f1_score"] = round(f1_score(y_true, y_pred, average="macro"),decimals)
-		return output
+		self.tb.add_scalar("Loss/train", tr_loss, epoch)
+		self.tb.add_scalar("Loss/validation", val_loss, epoch)
+		for i in range(len(self.model.model)-1): # iteration through layers
+			self.tb.add_histogram(f"layer_{i}/wight", self.model.model[i].layer.weight, epoch)
+			self.tb.add_histogram(f"layer_{i}/bias", self.model.model[i].layer.bias, epoch)
+			self.tb.add_histogram(f"layer_{i}/wight_grad", self.model.model[i].layer.weight.grad, epoch)
+			self.tb.add_histogram(f"layer_{i}/bias_grad", self.model.model[i].layer.bias.grad, epoch)
+		if acc!=None:
+			self.tb.add_scalar("Accurary/validation", acc, epoch)
 
 	def forward(self, epochs, train_loader, validation_loader):
 		#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -250,6 +250,9 @@ class Trainer(nn.Module):
 				#=================log====================
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
+					if self.tensorboard:
+						#self.tb.add_graph(self.model.model, train_sample)
+						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+(i+1)//print_every)
 
 			validation_loss=0
 			with torch.no_grad():
@@ -262,10 +265,14 @@ class Trainer(nn.Module):
 
 			validation_loss /= len(validation_loader)
 			self.loss_history["validation"].append(validation_loss)
+			acc = accuracy_score(y_valid_true.cpu().detach(), torch.argmax(y_valid_pred.cpu().detach(), axis=1))
+			self.loss_history["val_accuracy"].append(acc)
 
 			if self.verbose:
-				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}"\
-						.format(epoch+1, epochs, train_loss/n_batches, validation_loss))
+				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}, val_accuracy:{:,.4f}"\
+						.format(epoch+1, epochs, train_loss/n_batches, validation_loss, acc))
+			if self.tensorboard:
+				self.tensorboard_save(epoch=epoch, tr_loss=train_loss/n_batches, val_loss=validation_loss, acc=acc)
 			if self.scheduler!=None:
 				self.scheduler.step()
 		return self.loss_history
