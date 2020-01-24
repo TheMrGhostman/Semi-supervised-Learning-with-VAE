@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 
-from layers import *
+from .layers import *
 
 from IPython.core.debugger import set_trace
 

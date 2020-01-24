@@ -6,6 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F 
 
+import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, f1_score
+
 
 def gaussian_nll(y_true, mu, sigma):
 	"""
@@ -28,11 +31,30 @@ def sample_mse(y_true, y_pred):
 	return torch.mean(torch.sum((y_true-y_pred).pow(2), axis=1))
 
 
+def plot_loss(obj, figsize=(25,18), downsample=None):
+	"""
+	: param obj: 	Object type SVI or Trainer
+	"""
+	loss_train = obj.loss_history["train"]
+	axe_t = np.arange(len(loss_train))/10
+	loss_val = obj.loss_history["validation"]
+	axe_v = np.arange(len(loss_val))
+	if downsample!=None:
+		axe_t = axe_t[::downsample]
+		loss_train = loss_train[::downsample]
+	plt.figure(figsize=figsize)
+	plt.plot(axe_t, loss_train, lw=0.5)
+	plt.plot(axe_v, loss_val, lw=0.5)
+	plt.ylabel("loss")
+	plt.xlabel("Epochs")
+	plt.show()
+
+
 class SVI(nn.Module):
 	"""
 	Stochastic Variational Inference
 	"""
-	def __init__(self, vae_model, optimizer, loss_function="BCE", set_device=None, verbose=False):
+	def __init__(self, vae_model, optimizer, loss_function="BCE", scheduler=None, set_device=None, verbose=False):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
@@ -44,6 +66,7 @@ class SVI(nn.Module):
 		super(SVI, self).__init__()
 		self.model = vae_model
 		self.optimizer = optimizer
+		self.scheduler = scheduler
 
 		if set_device==None:
 			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -145,6 +168,8 @@ class SVI(nn.Module):
 			if self.verbose:
 				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}"\
 					  .format(epoch+1, epochs, train_loss/n_batches, validation_loss))
+			if self.scheduler !=None:
+				self.scheduler.step()
 
 		return self.loss_history
 
@@ -154,7 +179,7 @@ class Trainer(nn.Module):
 	Function Trainer was made for easier training of Neural Networks for classification or regressin. 
 	Insted of defining whole trining precedure every time, it's now possible to do it in 2-3 lines of code.
 	"""
-	def __init__(self, model, optimizer, loss_function, set_device=None, verbose=False):
+	def __init__(self, model, optimizer, loss_function, scheduler=None, set_device=None, verbose=False):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
@@ -166,6 +191,7 @@ class Trainer(nn.Module):
 		super(Trainer, self).__init__()
 		self.model = model
 		self.optimizer = optimizer
+		self.scheduler = scheduler
 
 		if set_device==None:
 			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -179,6 +205,25 @@ class Trainer(nn.Module):
 		if self.verbose:
 			print(self.device) 
 
+	def evaluate_metrics(self, y_true, y_pred, metric, argmax=True, detach=False, decimals=3):
+		"""
+		: param y_true:		Data labels "the Ground Truth". 	
+		: param y_pred:		Output of model, predicted labels.
+		: param metric:		Metrices which we want to evaluate.
+							Options are "accuracy", "f1_score"	
+		"""
+		output = {}
+		if detach:
+			y_pred = y_pred.cpu().detach()
+		if argmax:
+			y_pred = x.argmax(y_pred, axis=1)
+		if not isinstance(metric, list):
+			metric = [metric]
+		if "accuracy" in metric:
+			output["accuracy"] = round(accuracy_score(y_true, y_pred),decimals)
+		if "f1_score" in metric:
+			output["f1_score"] = round(f1_score(y_true, y_pred, average="macro"),decimals)
+		return output
 
 	def forward(self, epochs, train_loader, validation_loader):
 		#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -221,5 +266,6 @@ class Trainer(nn.Module):
 			if self.verbose:
 				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}"\
 						.format(epoch+1, epochs, train_loss/n_batches, validation_loss))
-
+			if self.scheduler!=None:
+				self.scheduler.step()
 		return self.loss_history
