@@ -54,14 +54,22 @@ def plot_loss(obj, figsize=(25,18), downsample=None):
 
 class SVI(nn.Module):
 	"""
-	Stochastic Variational Inference
+	Stochastic Variational Inference - for training of my VAEs
 	"""
-	def __init__(self, vae_model, optimizer, loss_function="BCE", scheduler=None, set_device=None, verbose=False):
+	def __init__(self, vae_model, optimizer, scheduler=None, loss_function="BCE", **kwargs):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
 		: param optimizer: 			Optimizer (e.g. torch.optim.Adam)
+		: param scheduler:			Schduler for optimizer's learing rate. 
+										(e.g. torch.optim.lr_scheduler.MultiStepLR)
 		: param loss_function: 		Type of loss function ("BCE", "MSE" or "GaussianNLL")
+		: param tensorboard:		Boolean parameter. Save graph and losses in epochs 
+										to tensorboard (True/False).
+		: param model_name:			If tonsorboard==True => model_name is name of tensorboar log.
+		: param set_device:			If you want to use specific device to train NN.(e.g. torch.device("cpu"))
+										(if set_device=None => 
+											torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 		: param verbose:			Boolean parameter
 
 		"""
@@ -69,21 +77,35 @@ class SVI(nn.Module):
 		self.model = vae_model
 		self.optimizer = optimizer
 		self.scheduler = scheduler
-
-		if set_device==None:
-			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		else:
-			self.device=set_device
-		self.model.to(self.device)
+		self.tensorboard = False
+		self.model_name = None
 
 		if loss_function not in ["BCE", "GaussianNLL", "MSE"]:
 			raise ValueError("Unknown loss function")
 		else:
 			self.loss_fn = loss_function
 		self.loss_history = {"train":[], "validation":[]}
-		self.verbose = verbose
-		if self.verbose:
+
+		#optional params
+		if kwargs.get("tensorboard") == True:
+			self.tensorboard = True
+			if kwargs.get("model_name")!= None:
+				self.tb = SummaryWriter(comment=kwargs.get("model_name"))
+			else:
+				self.tb = SummaryWriter()
+		
+		if kwargs.get("set_device")!=None:
+			self.device = kwargs.get("set_device")
+		else:
+			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+		self.model.to(self.device)
+
+		if kwargs.get("verbose")==True:
+			self.verbose = True
 			print(self.device) 
+		else:
+			self.verbose=False
 
 	def loss_function(self, y_pred, y_true, mu, sigma):
 		if self.loss_fn == "BCE":
@@ -119,7 +141,6 @@ class SVI(nn.Module):
 		KLD = - 0.5 * torch.mean(torch.sum(1 + torch.log(sigma.pow(2)) - mu.pow(2) - sigma.pow(2), axis=1)) 
 		pass
 
-
 	def forward(self, epochs, train_loader, validation_loader, flatten=False):
 		#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 		#self.model.to(device)
@@ -151,6 +172,10 @@ class SVI(nn.Module):
 				#=================log====================
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
+					if self.tensorboard:
+						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
+						if epoch==0:
+							self.tb.add_graph(self.model.model, train_sample)
 
 			self.model.eval()
 			validation_loss=0
@@ -170,6 +195,9 @@ class SVI(nn.Module):
 			if self.verbose:
 				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}"\
 					  .format(epoch+1, epochs, train_loss/n_batches, validation_loss))
+			if self.tensorboard:
+				self.tb.add_scalar("Loss/train", train_loss/n_batches, epoch+1)
+				self.tb.add_scalar("Loss/validation", validation_loss, epoch+1)
 			if self.scheduler !=None:
 				self.scheduler.step()
 
@@ -181,12 +209,20 @@ class Trainer(nn.Module):
 	Function Trainer was made for easier training of Neural Networks for classification or regressin. 
 	Insted of defining whole trining precedure every time, it's now possible to do it in 2-3 lines of code.
 	"""
-	def __init__(self, model, optimizer, loss_function, scheduler=None, tensorboard=True, set_device=None, model_name=None,verbose=False):
+	def __init__(self, model, optimizer, loss_function, scheduler=None, **kwargs):
 		"""
 		: param vae_model: 			Variational AutoEncoder model 
 										which has self.encoder, self.decoder and forward function
 		: param optimizer: 			Optimizer (e.g. torch.optim.Adam)
 		: param loss_function: 		Type of loss function (nn.CrossEntropyLoss()) 
+		: param scheduler:			Schduler for optimizer's learing rate. 
+										(e.g. torch.optim.lr_scheduler.MultiStepLR)
+		: param tensorboard:		Boolean parameter. Save graph and losses in epochs 
+										to tensorboard (True/False).
+		: param model_name:			If tonsorboard==True => model_name is name of tensorboar log.
+		: param set_device:			If you want to use specific device to train NN.(e.g. torch.device("cpu"))
+										(if set_device=None => 
+											torch.device("cuda:0" if torch.cuda.is_available() else "cpu"))
 		: param verbose:			Boolean parameter
 
 		"""
@@ -195,24 +231,29 @@ class Trainer(nn.Module):
 		self.optimizer = optimizer
 		self.scheduler = scheduler
 
-		self.tensorboard = tensorboard
-		if self.tensorboard:
-			if model_name==None:
-				self.tb = SummaryWriter()
-			else:
-				self.tb = SummaryWriter(comment=model_name)
-
-		if set_device==None:
-			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		else:
-			self.device=set_device
-		self.model.to(self.device)
-
 		self.loss_fn = loss_function
 		self.loss_history = {"train":[], "validation":[], "val_accuracy":[]}
-		self.verbose = verbose
-		if self.verbose:
+
+		#optional params
+		if kwargs.get("tensorboard") == True:
+			self.tensorboard = True
+			if kwargs.get("model_name")!= None:
+				self.tb = SummaryWriter(comment=kwargs.get("model_name"))
+			else:
+				self.tb = SummaryWriter()
+		
+		if kwargs.get("set_device")!=None:
+			self.device = kwargs.get("set_device")
+		else:
+			self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+		self.model.to(self.device)
+
+		if kwargs.get("verbose")==True:
+			self.verbose = True
 			print(self.device) 
+		else:
+			self.verbose=False
 
 	def tensorboard_save(self, epoch, tr_loss, val_loss, acc=None):
 		"""
@@ -255,9 +296,9 @@ class Trainer(nn.Module):
 				#=================log====================
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
-					#if self.tensorboard and epoch==0:
-						#self.tb.add_graph(self.model.model, train_sample)
-						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+(i+1)//print_every)
+					if self.tensorboard and epoch==0:
+						self.tb.add_graph(self.model.model, train_sample)
+						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
 
 			validation_loss=0
 			with torch.no_grad():
@@ -280,4 +321,5 @@ class Trainer(nn.Module):
 				self.tensorboard_save(epoch=epoch, tr_loss=train_loss/n_batches, val_loss=validation_loss, acc=acc)
 			if self.scheduler!=None:
 				self.scheduler.step()
+				
 		return self.loss_history
