@@ -175,7 +175,7 @@ class SVI(nn.Module):
 					if self.tensorboard:
 						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
 						if epoch==0:
-							self.tb.add_graph(self.model.model, train_sample)
+							self.tb.add_graph(self.model, train_sample)
 
 			self.model.eval()
 			validation_loss=0
