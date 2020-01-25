@@ -206,7 +206,7 @@ class SVI(nn.Module):
 
 class Trainer(nn.Module):
 	"""
-	Function Trainer was made for easier training of Neural Networks for classification or regressin. 
+	Class Trainer was made for easier training of Neural Networks for classification or regression. 
 	Insted of defining whole trining precedure every time, it's now possible to do it in 2-3 lines of code.
 	"""
 	def __init__(self, model, optimizer, loss_function, scheduler=None, **kwargs):
@@ -321,5 +321,5 @@ class Trainer(nn.Module):
 				self.tensorboard_save(epoch=epoch, tr_loss=train_loss/n_batches, val_loss=validation_loss, acc=acc)
 			if self.scheduler!=None:
 				self.scheduler.step()
-				
+
 		return self.loss_history
