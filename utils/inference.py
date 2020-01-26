@@ -147,7 +147,10 @@ class SVI(nn.Module):
 		n_batches = len(train_loader)
 		print_every = n_batches//10
 
-		for epoch in range(epochs):
+		if not isinstance(epochs, range):
+			epochs = range(epochs)
+
+		for epoch in epochs:
 			self.model.train()
 			train_loss = 0
 			for i, (train_sample, _) in enumerate(train_loader, 0):
@@ -272,12 +275,13 @@ class Trainer(nn.Module):
 			self.tb.add_scalar("Accurary/validation", acc, epoch)
 
 	def forward(self, epochs, train_loader, validation_loader):
-		#device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-		#self.model.to(device)
 		n_batches = len(train_loader)
 		print_every = n_batches//10
 
-		for epoch in range(epochs):
+		if not isinstance(epochs, range):
+			epochs = range(epochs)
+
+		for epoch in epochs:
 			self.model.train()
 			train_loss = 0
 			for i, (train_sample, y_true) in enumerate(train_loader, 0):
