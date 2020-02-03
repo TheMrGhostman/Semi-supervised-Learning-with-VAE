@@ -150,6 +150,8 @@ class SVI(nn.Module):
 		if not isinstance(epochs, range):
 			epochs = range(epochs)
 
+		n_epochs = max(epochs)+1
+
 		for epoch in epochs:
 			self.model.train()
 			train_loss = 0
@@ -176,7 +178,7 @@ class SVI(nn.Module):
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
 					if self.tensorboard:
-						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
+						self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+(i+1)/n_batches)
 						if epoch==0:
 							self.tb.add_graph(self.model, train_sample)
 
@@ -197,7 +199,7 @@ class SVI(nn.Module):
 
 			if self.verbose:
 				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}"\
-					  .format(epoch+1, epochs, train_loss/n_batches, validation_loss))
+					  .format(epoch+1, n_epochs, train_loss/n_batches, validation_loss))
 			if self.tensorboard:
 				self.tb.add_scalar("Loss/train", train_loss/n_batches, epoch+1)
 				self.tb.add_scalar("Loss/validation", validation_loss, epoch+1)
@@ -244,6 +246,8 @@ class Trainer(nn.Module):
 				self.tb = SummaryWriter(comment=kwargs.get("model_name"))
 			else:
 				self.tb = SummaryWriter()
+		else: 
+			self.tensorboard = False
 		
 		if kwargs.get("set_device")!=None:
 			self.device = kwargs.get("set_device")
@@ -280,6 +284,7 @@ class Trainer(nn.Module):
 
 		if not isinstance(epochs, range):
 			epochs = range(epochs)
+		n_epochs = max(epochs)+1
 
 		for epoch in epochs:
 			self.model.train()
@@ -301,10 +306,14 @@ class Trainer(nn.Module):
 				if ((i + 1) % print_every == 0): # and isinstance(history_train_loss, list)
 					self.loss_history["train"].append(loss.item())
 					if self.tensorboard and epoch==0:
-						self.tb.add_graph(self.model.model, train_sample)
+						if isinstance(self.model, nn.Sequential):
+							self.tb.add_graph(self.model, train_sample)
+						else:
+							self.tb.add_graph(self.model.model, train_sample)
 						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
 
 			validation_loss=0
+			self.model.eval( )
 			with torch.no_grad():
 				for j, (validation_sample, y_valid_true) in enumerate(validation_loader, 0):
 					validation_sample = validation_sample.to(self.device)
@@ -320,7 +329,7 @@ class Trainer(nn.Module):
 
 			if self.verbose:
 				print("Epoch [{}/{}], average_loss:{:.4f}, validation_loss:{:.4f}, val_accuracy:{:,.4f}"\
-						.format(epoch+1, epochs, train_loss/n_batches, validation_loss, acc))
+						.format(epoch+1, n_epochs, train_loss/n_batches, validation_loss, acc))
 			if self.tensorboard:
 				self.tensorboard_save(epoch=epoch, tr_loss=train_loss/n_batches, val_loss=validation_loss, acc=acc)
 			if self.scheduler!=None:

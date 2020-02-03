@@ -255,6 +255,102 @@ class DeepConvVAE_ELU(nn.Module):
 		return self.decoder(z), mu, sigma
 
 
+class CBN_VAE(nn.Module):
+	def __init__(self, original_dim, latent_dim, activation=nn.ReLU(inplace=True)):
+		super(CBN_VAE, self).__init__()
+		self.encoder = nn.Sequential(
+							Reshape(out_shape=(1, original_dim)),
+							nn.Conv1d(in_channels=1, out_channels=16, kernel_size=6, stride=2, padding=0, bias=False), # n*1*160 -> n*16*78
+							activation,
+							nn.Conv1d(in_channels=16, out_channels=32, kernel_size=4, stride=2, bias=False),#n*16*78->n*32*38
+							nn.BatchNorm1d(num_features=32),
+							activation,
+							nn.Conv1d(in_channels=32, out_channels=64, kernel_size=4, stride=2, bias=False),#n*32*38->n*64*18
+							nn.BatchNorm1d(num_features=64),
+							activation,
+							Flatten(out_features=64*18),
+							nn.Linear(in_features=64*18, out_features=256),
+							activation,
+							VariationalLayer(in_features=256, out_features=latent_dim, return_KL=False)
+							)
+		self.decoder = nn.Sequential(
+							nn.Linear(in_features=latent_dim, out_features=256),
+							activation,
+							nn.Linear(in_features=256, out_features=64*18),
+							Reshape(out_shape=(64,18)),
+							nn.BatchNorm1d(num_features=64),
+							activation,
+							nn.ConvTranspose1d(in_channels=64, out_channels=32, kernel_size=4, stride=2, padding=0),
+							nn.BatchNorm1d(num_features=32),
+							activation,
+							nn.ConvTranspose1d(in_channels=32, out_channels=16, kernel_size=4, stride=2, padding=0),
+							#nn.BatchNorm1d(num_features=16),
+							activation,
+							ConvTransposeDecoderOutput(
+								in_channels=16, 
+								in_features=16*78, 
+								out_features=original_dim, 
+								kernel_size=6, 
+								stride=2
+								)
+							)
+
+	def forward(self, x_in):
+		z, mu, sigma = self.encoder(x_in)
+		return self.decoder(z), mu, sigma
+
+
+class CBND_VAE(nn.Module):
+	def __init__(self, original_dim, latent_dim, dropout,activation=nn.ReLU(inplace=True)):
+		super(CBN_VAE, self).__init__()
+		self.encoder = nn.Sequential(
+							Reshape(out_shape=(1, original_dim)),
+							nn.Conv1d(in_channels=1, out_channels=16, kernel_size=6, stride=2, padding=0, bias=False), # n*1*160 -> n*16*78
+							activation,
+							nn.Conv1d(in_channels=16, out_channels=32, kernel_size=4, stride=2, bias=False),#n*16*78->n*32*38
+							nn.BatchNorm1d(num_features=32),
+							activation,
+							nn.Dropout(p=dropout),
+							nn.Conv1d(in_channels=32, out_channels=64, kernel_size=4, stride=2, bias=False),#n*32*38->n*64*18
+							nn.BatchNorm1d(num_features=64),
+							activation,
+							nn.Dropout(p=dropout),
+							Flatten(out_features=64*18),
+							nn.Linear(in_features=64*18, out_features=256),
+							activation,
+							nn.Dropout(p=dropout),
+							VariationalLayer(in_features=256, out_features=latent_dim, return_KL=False)
+							)
+		self.decoder = nn.Sequential(
+							nn.Linear(in_features=latent_dim, out_features=256),
+							activation,
+							nn.Dropout(p=dropout),
+							nn.Linear(in_features=256, out_features=64*18),
+							Reshape(out_shape=(64,18)),
+							nn.BatchNorm1d(num_features=64),
+							activation,
+							nn.Dropout(p=dropout),
+							nn.ConvTranspose1d(in_channels=64, out_channels=32, kernel_size=4, stride=2, padding=0),
+							nn.BatchNorm1d(num_features=32),
+							activation,
+							nn.Dropout(p=dropout),
+							nn.ConvTranspose1d(in_channels=32, out_channels=16, kernel_size=4, stride=2, padding=0),
+							#nn.BatchNorm1d(num_features=16),
+							activation,
+							ConvTransposeDecoderOutput(
+								in_channels=16, 
+								in_features=16*78, 
+								out_features=original_dim, 
+								kernel_size=6, 
+								stride=2
+								)
+							)
+
+	def forward(self, x_in):
+		z, mu, sigma = self.encoder(x_in)
+		return self.decoder(z), mu, sigma
+
+
 class DeepLSTM_VAE(nn.Module):
 	def __init__(self, sequence_len, n_features, latent_dim, hidden_size=128, num_layers=2, batch_size=100, use_cuda=True):
 		# ověřit predikci pro jiný batch size !!!!!!!!!!!!!!!!

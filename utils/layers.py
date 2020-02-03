@@ -150,7 +150,7 @@ class CBD1dBlock(nn.Module):
 	"""
 	Block of layers consisting of Conv1d, BatchNorm1d, Activation and Dropout
 	"""
-	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, activation=nn.ReLU(), dropout=False):
+	def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, bias=True, activation=nn.ReLU(), dropout=False):
 		"""
 		: param in_channels		Number of input channels (input features).
 		: param out_channels	Number of output channels (output features).
@@ -158,7 +158,7 @@ class CBD1dBlock(nn.Module):
 		: param dropout         Probability of dropout p. (dropout==False -> no dropout)
 		"""
 		super(CBD1dBlock, self).__init__()
-		self.layer = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding)
+		self.layer = nn.Conv1d(in_channels=in_channels, out_channels=out_channels, kernel_size=kernel_size, stride=stride, padding=padding, bias=bias)
 		self.batch_norm = nn.BatchNorm1d(num_features=out_channels)
 		self.activation = activation
 		self.dropout = nn.Dropout(p=dropout) if dropout!=False else dropout
@@ -172,6 +172,21 @@ class CBD1dBlock(nn.Module):
 			return self.activation(CoBN)
 		else:
 			return self.dropout(self.activation(CoBN))
+
+
+class LSTM_mod(nn.Module):
+	"""
+	Just regular LSTM layer without returning hidden states and flattened output. 
+	This modified layer can be used in nn.Sequential type of model.
+	"""
+    def __init__(self, sequence_len, **kwargs):
+        super(LSTM_mod, self).__init__()
+        self.layer = nn.LSTM(**kwargs)
+        self.sequence_len = sequence_len
+    
+    def forward(self,x):
+        out, (h,c) = self.layer(x)
+        return out.reshape(-1, self.layer.hidden_size*pow(2,int(self.layer.bidirectional))*self.sequence_len)
 
 
 class Flatten(nn.Module):
