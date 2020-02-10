@@ -179,14 +179,14 @@ class LSTM_mod(nn.Module):
 	Just regular LSTM layer without returning hidden states and flattened output. 
 	This modified layer can be used in nn.Sequential type of model.
 	"""
-    def __init__(self, sequence_len, **kwargs):
-        super(LSTM_mod, self).__init__()
-        self.layer = nn.LSTM(**kwargs)
-        self.sequence_len = sequence_len
-    
-    def forward(self,x):
-        out, (h,c) = self.layer(x)
-        return out.reshape(-1, self.layer.hidden_size*pow(2,int(self.layer.bidirectional))*self.sequence_len)
+	def __init__(self, sequence_len, **kwargs):
+		super(LSTM_mod, self).__init__()
+		self.layer = nn.LSTM(**kwargs)
+		self.sequence_len = sequence_len
+	
+	def forward(self,x):
+		out, (h,c) = self.layer(x)
+		return out.reshape(-1, self.layer.hidden_size*pow(2,int(self.layer.bidirectional))*self.sequence_len)
 
 
 class Flatten(nn.Module):
