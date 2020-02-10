@@ -90,9 +90,9 @@ class SVI(nn.Module):
 		if kwargs.get("tensorboard") == True:
 			self.tensorboard = True
 			if kwargs.get("model_name")!= None:
-				self.tb = SummaryWriter(comment=kwargs.get("model_name"))
+				self.tb = SummaryWriter(log_dir="Tesorboard", comment=kwargs.get("model_name"))
 			else:
-				self.tb = SummaryWriter()
+				self.tb = SummaryWriter(log_dir="Tensorboard")
 		
 		if kwargs.get("set_device")!=None:
 			self.device = kwargs.get("set_device")
@@ -243,9 +243,9 @@ class Trainer(nn.Module):
 		if kwargs.get("tensorboard") == True:
 			self.tensorboard = True
 			if kwargs.get("model_name")!= None:
-				self.tb = SummaryWriter(comment=kwargs.get("model_name"))
+				self.tb = SummaryWriter(log_dir="Tensorboard", comment=kwargs.get("model_name"))
 			else:
-				self.tb = SummaryWriter()
+				self.tb = SummaryWriter(log_dir="Tensorboard")
 		else: 
 			self.tensorboard = False
 		
