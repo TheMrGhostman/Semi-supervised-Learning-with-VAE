@@ -308,8 +308,10 @@ class Trainer(nn.Module):
 					if self.tensorboard and epoch==0:
 						if isinstance(self.model, nn.Sequential):
 							self.tb.add_graph(self.model, train_sample)
-						else:
+						else if isinstance(self.model.model, nn.Sequential):
 							self.tb.add_graph(self.model.model, train_sample)
+						else:
+							self.tb.add_graph(self.model, train_sample)
 						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
 
 			validation_loss=0
