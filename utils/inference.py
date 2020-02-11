@@ -308,7 +308,7 @@ class Trainer(nn.Module):
 					if self.tensorboard and epoch==0:
 						if isinstance(self.model, nn.Sequential):
 							self.tb.add_graph(self.model, train_sample)
-						else if hasattr(self.model, 'model') and isinstance(self.model.model, nn.Sequential):
+						elif hasattr(self.model, 'model') and isinstance(self.model.model, nn.Sequential):
 							self.tb.add_graph(self.model.model, train_sample)
 						else:
 							self.tb.add_graph(self.model, train_sample)
