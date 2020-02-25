@@ -169,7 +169,7 @@ class SVI(nn.Module):
 				loss = self.loss_function(y_pred=output, y_true=train_sample, mu=mu, sigma=sigma)
 				# KLD = KLD / (batch_size * 784) 
 							
-				train_loss += loss.item()
+				train_loss += loss.detach().item()
 				#=================backward===============
 				self.optimizer.zero_grad()
 				loss.backward()
@@ -192,7 +192,7 @@ class SVI(nn.Module):
 					if flatten:
 						validation_sample = validation_sample.view(-1, self.model.original_dim)
 
-					validation_loss += self.loss_function(y_pred=output, y_true=validation_sample, mu=mu, sigma=sigma).item()
+					validation_loss += self.loss_function(y_pred=output, y_true=validation_sample, mu=mu, sigma=sigma).detach().item()
 
 			validation_loss /= len(validation_loader)
 			self.loss_history["validation"].append(validation_loss)
@@ -297,7 +297,7 @@ class Trainer(nn.Module):
 
 				loss = self.loss_fn(y_pred, y_true)
 							
-				train_loss += loss.item()
+				train_loss += loss.detach().item()
 				#=================backward===============
 				self.optimizer.zero_grad()
 				loss.backward()
@@ -322,7 +322,7 @@ class Trainer(nn.Module):
 					y_valid_true = y_valid_true.to(self.device)
 					y_valid_pred = self.model.forward(validation_sample)
 
-					validation_loss += self.loss_fn(y_valid_pred, y_valid_true).item()
+					validation_loss += self.loss_fn(y_valid_pred, y_valid_true).detach().item()
 
 			validation_loss /= len(validation_loader)
 			self.loss_history["validation"].append(validation_loss)
