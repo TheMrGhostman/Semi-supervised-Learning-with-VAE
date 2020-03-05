@@ -638,6 +638,52 @@ class DNN(nn.Module):
 		return self.model(x_in)
 
 
+class CRNN(nn.Module):
+    def __init__(self, n_filters, kernel_sizes, rnn_out, sequence_len=160):
+        super(CRNN, self).__init__()
+        self.sequence_len = sequence_len
+        # conv wants (batch, channel, length)
+        self.reshape_to_inception = layers.Reshape(out_shape=(1, self.sequence_len))
+        self.inception = Inception(
+                in_channels=1, 
+                n_filters=32, 
+                kernel_sizes=[5, 11, 23],
+                bottleneck_channels=32,
+                activation=nn.ReLU()
+            )
+        # RNN wants #(batch, seq, feature)
+        self.rnn1 = nn.LSTM(
+            input_size=n_filters*4,
+            hidden_size=rnn_out*4,
+            num_layers=1,
+            batch_first=True,
+            bidirectional=False
+        )
+        self.rnn2 = nn.LSTM(
+            input_size=rnn_out*4,
+            hidden_size=rnn_out,
+            num_layers=1,
+            batch_first=True,
+            bidirectional=False
+        )
+        #self.pool = nn.AdaptiveAvgPool1d(output_size=1)
+        self.fc_on_rnn = nn.Linear(in_features=rnn_out, out_features=1)
+        self.flatten = layers.Flatten(out_features=self.sequence_len)
+        self.fc = nn.Linear(in_features=self.sequence_len, out_features=4)
 
-
+    def forward(self, x_in):
+        x = self.reshape_to_inception(x_in)
+        x = self.inception(x)
+        #print(x.shape)
+        x = x.permute(0,2,1)
+        #print(x.shape)
+        x, (h, c) = self.rnn1(x)
+        x, (h, c) = self.rnn2(x)
+        #print(x.shape)
+        #x = self.pool(x)
+        x = self.fc_on_rnn(x)
+        #print(x.shape)
+        x = self.flatten(x)
+        #print(x.shape)
+        return self.fc(x)
 
