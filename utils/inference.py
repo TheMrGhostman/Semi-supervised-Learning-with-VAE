@@ -49,6 +49,15 @@ def plot_loss(obj, figsize=(25,18), downsample=None):
 	plt.plot(axe_v, loss_val, lw=0.5)
 	plt.ylabel("loss")
 	plt.xlabel("Epochs")
+
+
+	if "val_accuracy" in obj.loss_history.keys():
+		print("plotting accuracy")
+		plt.figure("Accuracy", figsize=figsize)
+		plt.plot(obj.loss_history["val_accuracy"])
+		plt.ylabel("Accuracy")
+		plt.ylim(0, 1)
+		plt.grid(True)
 	plt.show()
 
 

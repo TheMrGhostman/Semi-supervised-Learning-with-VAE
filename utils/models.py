@@ -11,12 +11,12 @@ from IPython.core.debugger import set_trace
 
 
 def paremeters_summary(model):
-    s = []
-    for p in model.parameters():
-        dims = p.size()
-        n = np.prod(p.size())
-        s.append((dims, n))
-    return s, np.sum([j for i,j in s])
+	s = []
+	for p in model.parameters():
+		dims = p.size()
+		n = np.prod(p.size())
+		s.append((dims, n))
+	return s, np.sum([j for i,j in s])
 
 # Models
 # DeepDenseVAE mark I
@@ -530,7 +530,7 @@ class DeepLSTM_VAE_MSE(nn.Module):
 class DeepGRU_VAE(nn.Module):
 	def __init__(self, sequence_len, n_features, latent_dim, hidden_size=128, num_layers=2, batch_size=100, use_cuda=True):
 		# ověřit predikci pro jiný batch size !!!!!!!!!!!!!!!!
-		super(DeepLSTM_VAE, self).__init__()
+		super(DeepGRU_VAE, self).__init__()
 
 		self.sequence_len = sequence_len
 		self.n_features = n_features
@@ -545,7 +545,7 @@ class DeepGRU_VAE(nn.Module):
 			self.dtype = torch.float32
 
 		self.encoder_reshape = Reshape(out_shape=(self.sequence_len, self.n_features))
-		self.encoder_lstm = nn.GRU(
+		self.encoder_gru = nn.GRU(
 									input_size=n_features,
 									hidden_size=hidden_size,
 									num_layers=num_layers,
@@ -563,7 +563,7 @@ class DeepGRU_VAE(nn.Module):
 									out_features=hidden_size,
 									bias=True	
 									)
-		self.decoder_lstm = nn.GRU(
+		self.decoder_gru= nn.GRU(
 									input_size=1,
 									hidden_size=hidden_size,
 									num_layers=num_layers,
@@ -582,19 +582,12 @@ class DeepGRU_VAE(nn.Module):
 									self.n_features, 
 									requires_grad=True
 									).type(self.dtype)
-		self.decoder_c_0 = torch.zeros(
-									self.num_layers,
-									self.batch_size,
-									self.hidden_size,
-									requires_grad=True 
-									).type(self.dtype)
-
-
+		
 	def encoder(self, x_in):
 		x = self.encoder_reshape(x_in)
 		#set_trace()
 		x = x.permute(1, 0, 2)
-		_,(h_end, c_end) = self.encoder_lstm(x)
+		_, h_end= self.encoder_gru(x)
 		h_end = h_end[-1, :, :] # shape(batch_size, num_features)
 		return self.encoder_output(h_end)
 
@@ -602,8 +595,8 @@ class DeepGRU_VAE(nn.Module):
 		h_state = self.decoder_hidden(z_in)
 		#set_trace()
 		h_0 = torch.stack([h_state for _ in range(self.num_layers)])
-		lstm_output, _ = self.decoder_lstm(self.decoder_input, (h_0, self.decoder_c_0))
-		mu, sigma = self.decoder_output(lstm_output)
+		gru_output, _ = self.decoder_gru(self.decoder_input, h_0)
+		mu, sigma = self.decoder_output(gru_output)
 		return mu, sigma
 
 	def forward(self, x_in):
@@ -639,51 +632,51 @@ class DNN(nn.Module):
 
 
 class CRNN(nn.Module):
-    def __init__(self, n_filters, kernel_sizes, rnn_out, sequence_len=160):
-        super(CRNN, self).__init__()
-        self.sequence_len = sequence_len
-        # conv wants (batch, channel, length)
-        self.reshape_to_inception = layers.Reshape(out_shape=(1, self.sequence_len))
-        self.inception = Inception(
-                in_channels=1, 
-                n_filters=32, 
-                kernel_sizes=[5, 11, 23],
-                bottleneck_channels=32,
-                activation=nn.ReLU()
-            )
-        # RNN wants #(batch, seq, feature)
-        self.rnn1 = nn.LSTM(
-            input_size=n_filters*4,
-            hidden_size=rnn_out*4,
-            num_layers=1,
-            batch_first=True,
-            bidirectional=False
-        )
-        self.rnn2 = nn.LSTM(
-            input_size=rnn_out*4,
-            hidden_size=rnn_out,
-            num_layers=1,
-            batch_first=True,
-            bidirectional=False
-        )
-        #self.pool = nn.AdaptiveAvgPool1d(output_size=1)
-        self.fc_on_rnn = nn.Linear(in_features=rnn_out, out_features=1)
-        self.flatten = layers.Flatten(out_features=self.sequence_len)
-        self.fc = nn.Linear(in_features=self.sequence_len, out_features=4)
+	def __init__(self, n_filters, kernel_sizes, rnn_out, sequence_len=160, bidirectional=True):
+		super(CRNN, self).__init__()
+		self.sequence_len = sequence_len
+		# conv wants (batch, channel, length)
+		self.reshape_to_inception = layers.Reshape(out_shape=(1, self.sequence_len))
+		self.inception = Inception(
+				in_channels=1, 
+				n_filters=32, 
+				kernel_sizes=[5, 11, 23],
+				bottleneck_channels=32,
+				activation=nn.ReLU()
+			)
+		# RNN wants #(batch, seq, feature)
+		self.rnn1 = nn.LSTM(
+			input_size=n_filters*4,
+			hidden_size=rnn_out*4,
+			num_layers=1,
+			batch_first=True,
+			bidirectional=bidirectional
+		)
+		self.rnn2 = nn.LSTM(
+			input_size=rnn_out*4*(2**bidirectional),
+			hidden_size=rnn_out,
+			num_layers=1,
+			batch_first=True,
+			bidirectional=bidirectional
+		)
+		#self.pool = nn.AdaptiveAvgPool1d(output_size=1)
+		self.fc_on_rnn = nn.Linear(in_features=rnn_out*(2**bidirectional), out_features=1)
+		self.flatten = layers.Flatten(out_features=self.sequence_len)
+		self.fc = nn.Linear(in_features=self.sequence_len, out_features=4)
 
-    def forward(self, x_in):
-        x = self.reshape_to_inception(x_in)
-        x = self.inception(x)
-        #print(x.shape)
-        x = x.permute(0,2,1)
-        #print(x.shape)
-        x, (h, c) = self.rnn1(x)
-        x, (h, c) = self.rnn2(x)
-        #print(x.shape)
-        #x = self.pool(x)
-        x = self.fc_on_rnn(x)
-        #print(x.shape)
-        x = self.flatten(x)
-        #print(x.shape)
-        return self.fc(x)
+	def forward(self, x_in):
+		x = self.reshape_to_inception(x_in)
+		x = self.inception(x)
+		#print(x.shape)
+		x = x.permute(0,2,1)
+		#print(x.shape)
+		x, (h, c) = self.rnn1(x)
+		x, (h, c) = self.rnn2(x)
+		#print(x.shape)
+		#x = self.pool(x)
+		x = self.fc_on_rnn(x)
+		#print(x.shape)
+		x = self.flatten(x)
+		#print(x.shape)
+		return self.fc(x)
 
