@@ -19,6 +19,17 @@ def paremeters_summary(model):
 	return s, np.sum([j for i,j in s])
 
 # Models
+class VAE(nn.Module):
+	def __init__(self, encoder, decoder):
+		super(VAE, self).__init__()
+		self.encoder = encoder
+		self.decoder = decoder
+
+	def forward(self, x_in):
+		z, mu, sigma = self.encoder(x_in)
+		return self.decoder(z), mu, sigma
+
+
 # DeepDenseVAE mark I
 class DeepDenseVAE_mark_I(nn.Module):
 	def __init__(self, original_dim=28*28, latent_dim=20, encoder_dims=[400,200]):
@@ -359,6 +370,170 @@ class CBND_VAE(nn.Module):
 		return self.decoder(z), mu, sigma
 
 
+class ResNetVAE(nn.Module):
+    # version with adaptive pooling
+    def __init__(self, channels, latent_space_dim=15, activation=nn.ReLU()):
+        super(ResNetVAE, self).__init__()
+        self.activation = activation
+        assert len(channels)==4
+        self.encoder_input = Reshape(out_shape=(1,160))
+        
+        self.conv0  = nn.Conv1d(in_channels=1, out_channels=channels[0], kernel_size=6, stride=2, padding=0, bias=False)
+        
+        # first encoder block
+        self.conv1 = nn.Conv1d(in_channels=channels[0], out_channels=channels[1], kernel_size=5, stride=1, padding=2, bias=False)
+        self.bn1 = nn.BatchNorm1d(num_features=64)
+
+        self.conv2 =  nn.Conv1d(in_channels=channels[1], out_channels=channels[1], kernel_size=4, stride=2, padding=0, bias=False)
+        self.bn2 = nn.BatchNorm1d(num_features=channels[1])
+
+        self.residual1 = nn.Conv1d(in_channels=channels[0], out_channels=channels[1], kernel_size=4, stride=2, padding=0, bias=False)
+        self.bnr1 = nn.BatchNorm1d(num_features=channels[1])
+ 
+        # second encoder block
+        self.conv3 = nn.Conv1d(in_channels=channels[1], out_channels=channels[2], kernel_size=5, stride=1, padding=2, bias=False)
+        self.bn3 = nn.BatchNorm1d(num_features=channels[2])
+
+        self.conv4 = nn.Conv1d(in_channels=channels[2], out_channels=channels[2], kernel_size=4, stride=2, padding=0, bias=False)
+        self.bn4 = nn.BatchNorm1d(num_features=channels[2])
+ 
+        self.residual2 = nn.Conv1d(in_channels=channels[1], out_channels=channels[2], kernel_size=4, stride=2, padding=0, bias=False)
+        self.bnr2 = nn.BatchNorm1d(num_features=channels[2])
+        
+        # third encoder block
+        self.conv5 = nn.Conv1d(in_channels=channels[2], out_channels=channels[3], kernel_size=5, stride=1, padding=2, bias=False)
+        self.bn5 = nn.BatchNorm1d(num_features=channels[3])
+
+        self.conv6 = nn.Conv1d(in_channels=channels[3], out_channels=channels[3], kernel_size=3, stride=2, padding=0, bias=False)
+        self.bn6 = nn.BatchNorm1d(num_features=channels[3])
+        
+        self.residual3 = nn.Conv1d(in_channels=channels[2], out_channels=channels[3], kernel_size=3, stride=2, padding=0, bias=False)
+        self.bnr3 = nn.BatchNorm1d(num_features=channels[3])
+        
+        # bottleneck
+        self.encoder_flatten = Flatten(out_features=channels[3]*8)
+        self.encoder_bottleneck = VariationalLayer(in_features=channels[3]*8, out_features=latent_space_dim)
+        
+        self.decoder_from_bn = nn.Linear(in_features=latent_space_dim, out_features=channels[3]*8)
+        self.decoder_reshape = Reshape(out_shape=(channels[3], 8))
+        
+        # first decoder block
+        self.bnr4 = nn.BatchNorm1d(num_features=channels[3])
+        self.residual4 = nn.ConvTranspose1d(in_channels=channels[3], out_channels=channels[2], kernel_size=4, stride=2, padding=0, bias=False)
+
+        self.conv7 = nn.ConvTranspose1d(in_channels=channels[3], out_channels=channels[3], kernel_size=4, stride=2, padding=0, bias=False)
+        
+        self.bn8 = nn.BatchNorm1d(num_features=channels[3])
+        self.conv8 = nn.ConvTranspose1d(in_channels=channels[3], out_channels=channels[2], kernel_size=5, stride=1, padding=2, bias=False)
+        
+        # second decoder block
+        self.bnr5 = nn.BatchNorm1d(num_features=channels[2])
+        self.residual5 = nn.ConvTranspose1d(in_channels=channels[2], out_channels=channels[1], kernel_size=4, stride=2, padding=0, bias=False)
+
+        self.conv9 = nn.ConvTranspose1d(in_channels=channels[2], out_channels=channels[2], kernel_size=4, stride=2, padding=0, bias=False)
+        
+        self.bn10 = nn.BatchNorm1d(num_features=channels[2])
+        self.conv10 = nn.ConvTranspose1d(in_channels=channels[2], out_channels=channels[1], kernel_size=5, stride=1, padding=2, bias=False)
+
+        # third decoder block
+        self.bnr6 = nn.BatchNorm1d(num_features=channels[1])
+        self.residual6 = nn.ConvTranspose1d(in_channels=channels[1], out_channels=channels[0], kernel_size=4, stride=2, padding=0, bias=False)
+
+        self.conv11 = nn.ConvTranspose1d(in_channels=channels[1], out_channels=channels[1], kernel_size=4, stride=2, padding=0, bias=False)
+        
+        self.bn12 = nn.BatchNorm1d(num_features=channels[1])
+        self.conv12 = nn.ConvTranspose1d(in_channels=channels[1], out_channels=channels[0], kernel_size=5, stride=1, padding=2, bias=False)
+        
+        self.bn13 = nn.BatchNorm1d(num_features=channels[0])
+        self.decoder_outout = ConvTransposeDecoderOutput(
+                                     in_channels=channels[0], 
+                                     in_features=channels[0]*78, 
+                                     out_features=160, 
+                                     kernel_size=6, 
+                                     stride=2, 
+                                     padding=0, 
+                                     bias=False
+                                )
+    
+    def encoder(self, x_in):
+        x = self.encoder_input(x_in)
+        x = self.conv0(x)
+        x = self.activation(x)
+        
+        x_r = self.residual1(x)
+        x_r = self.bnr1(x_r)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.activation(x)   
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = x + x_r
+        x = self.activation(x) 
+        
+        x_r = self.residual2(x)
+        x_r = self.bnr2(x_r)
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.activation(x)
+        x = self.conv4(x)
+        x = self.bn4(x)
+        x = x + x_r
+        x = self.activation(x)
+         
+        x_r = self.residual3(x)
+        x_r = self.bnr3(x_r)
+        x = self.conv5(x)
+        x = self.bn5(x)
+        x = self.activation(x)
+        x = self.conv6(x) 
+        x = self.bn6(x)
+        x = x + x_r
+        x = self.activation(x)
+         
+        x = self.encoder_flatten(x)
+        z, mu, sigma = self.encoder_bottleneck(x)
+        return z, mu, sigma
+                                       
+    def decoder(self, z_in):
+        z = self.decoder_from_bn(z_in)
+        z = self.decoder_reshape(z)
+         
+        z = self.bnr4(z) 
+        z = self.activation(z)
+        z_r = self.residual4(z)
+        z = self.conv7(z)
+        z = self.bn8(z)
+        z = self.activation(z)
+        z = self.conv8(z)
+        z = z + z_r
+        
+        z = self.bnr5(z)
+        z = self.activation(z)
+        z_r = self.residual5(z)
+        z = self.conv9(z) 
+        z = self.bn10(z)
+        z = self.activation(z)
+        z = self.conv10(z)
+        z = z + z_r
+         
+        z = self.bnr6(z)
+        z = self.activation(z)
+        z_r = self.residual6(z)
+        z = self.conv11(z)
+        z = self.bn12(z)
+        z = self.activation(z)
+        z = self.conv12(z)
+        z = z + z_r
+        
+        z = self.bn13(z)
+        z = self.activation(z)        
+        return self.decoder_outout(z)
+    
+    def forward(self, x_in):
+        z, mu, sigma = self.encoder(x_in)
+        return self.decoder(z), mu, sigma
+
+
 class DeepLSTM_VAE(nn.Module):
 	def __init__(self, sequence_len, n_features, latent_dim, hidden_size=128, num_layers=2, batch_size=100, use_cuda=True):
 		# ověřit predikci pro jiný batch size !!!!!!!!!!!!!!!!
@@ -492,15 +667,15 @@ class DeepLSTM_VAE_MSE(nn.Module):
 									bias=True
 									)
 		self.decoder_input = torch.zeros(
-									self.sequence_len, 
+									(self.sequence_len, 
 									self.batch_size, 
-									self.n_features, 
+									self.n_features), 
 									requires_grad=True
 									).type(self.dtype)
 		self.decoder_c_0 = torch.zeros(
-									self.num_layers,
+									(self.num_layers,
 									self.batch_size,
-									self.hidden_size,
+									self.hidden_size),
 									requires_grad=True 
 									).type(self.dtype)
 
@@ -577,9 +752,9 @@ class DeepGRU_VAE(nn.Module):
 									bias=True
 									)
 		self.decoder_input = torch.zeros(
-									self.sequence_len, 
+									(self.sequence_len, 
 									self.batch_size, 
-									self.n_features, 
+									self.n_features), 
 									requires_grad=True
 									).type(self.dtype)
 		

@@ -206,7 +206,6 @@ class InceptionTranspose(nn.Module):
 									padding=0, 
 									bias=False
 									)
-		self.max_unpool = nn.MaxUnpool1d(kernel_size=3, stride=1, padding=1)
 		self.bottleneck = nn.Conv1d(
 								in_channels=3*bottleneck_channels, 
 								out_channels=out_channels, 
@@ -216,18 +215,16 @@ class InceptionTranspose(nn.Module):
 								)
 		self.batch_norm = nn.BatchNorm1d(num_features=out_channels)
 
-		def forward(self, X, indices):
-			Z1 = self.conv_to_bottleneck_1(X)
-			Z2 = self.conv_to_bottleneck_2(X)
-			Z3 = self.conv_to_bottleneck_3(X)
-			Z4 = self.conv_to_maxpool(X)
+	def forward(self, X):
+		Z1 = self.conv_to_bottleneck_1(X)
+		Z2 = self.conv_to_bottleneck_2(X)
+		Z3 = self.conv_to_bottleneck_3(X)
+		Z4 = self.conv_to_maxpool(X)
 
-			Z = torch.cat([Z1, Z2, Z3], axis=1)
-			MUP = self.max_unpool(Z4, indices)
-			BN = self.bottleneck(Z)
-			# another possibility insted of sum BN and MUP is adding 2nd bottleneck transposed convolution
-			
-			return self.activation(self.batch_norm(BN + MUP))
+		Z = torch.cat([Z1, Z2, Z3], axis=1)
+		BN = self.bottleneck(Z)
+		
+		return self.activation(self.batch_norm(BN + Z4))
 
 
 class InceptionTransposeBlock(nn.Module):
@@ -270,11 +267,10 @@ class InceptionTransposeBlock(nn.Module):
 									)
 								)
 
-	def forward(self, X, indices):
-		assert len(indices)==3
-		Z = self.inception_1(X, indices[2])
-		Z = self.inception_2(Z, indices[1])
-		Z = self.inception_3(Z, indices[0])
+	def forward(self, X):
+		Z = self.inception_1(X)
+		Z = self.inception_2(Z)
+		Z = self.inception_3(Z)
 		if self.use_residual:
 			Z = Z + self.residual(X)
 			Z = self.activation(Z)

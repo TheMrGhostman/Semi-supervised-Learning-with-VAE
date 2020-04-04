@@ -22,7 +22,6 @@ def gaussian_nll(y_true, mu, sigma):
 	
 	returns mean loss per sample (not per point)
 	"""
-
 	dim = mu.shape[1]/2
 	var = sigma.pow(2)
 	#print(mu.shape, sigma.shape)
