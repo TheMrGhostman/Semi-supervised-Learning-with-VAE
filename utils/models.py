@@ -10,14 +10,6 @@ from .layers import *
 from IPython.core.debugger import set_trace
 
 
-def paremeters_summary(model):
-	s = []
-	for p in model.parameters():
-		dims = p.size()
-		n = np.prod(p.size())
-		s.append((dims, n))
-	return s, np.sum([j for i,j in s])
-
 # Models
 class VAE(nn.Module):
 	def __init__(self, encoder, decoder):
