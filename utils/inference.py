@@ -11,54 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, f1_score
 
-
-def gaussian_nll(y_true, mu, sigma):
-	"""
-	Negative log likelihood (loss function) of gaussian random variable
-
-	: param y_true: 	target value
-	: param mu: 		mean of distribution ... size = (batch_size, output_dim)
-	: param sigma: 		standard deviation of distribution  ... size (batch_size, 1) <– same variance
-	
-	returns mean loss per sample (not per point)
-	"""
-	dim = mu.shape[1]/2
-	var = sigma.pow(2)
-	#print(mu.shape, sigma.shape)
-	return torch.mean(torch.sum((y_true-mu).pow(2), axis=1)/(2*var) + dim*torch.log(var)) + dim*math.log(2*math.pi)
-
-
-def sample_mse(y_true, y_pred):
-	return torch.mean(torch.sum((y_true-y_pred).pow(2), axis=1))
-
-
-def plot_loss(obj, figsize=(25,18), downsample=None):
-	"""
-	: param obj: 	Object type SVI or Trainer
-	"""
-	loss_train = obj.loss_history["train"]
-	axe_t = np.arange(len(loss_train))/10
-	loss_val = obj.loss_history["validation"]
-	axe_v = np.arange(len(loss_val))
-	if downsample!=None:
-		axe_t = axe_t[::downsample]
-		loss_train = loss_train[::downsample]
-	plt.figure(figsize=figsize)
-	plt.plot(axe_t, loss_train, lw=0.5)
-	plt.plot(axe_v, loss_val, lw=0.5)
-	plt.ylabel("loss")
-	plt.xlabel("Epochs")
-
-
-	if "val_accuracy" in obj.loss_history.keys():
-		print("plotting accuracy")
-		plt.figure("Accuracy", figsize=figsize)
-		plt.plot(obj.loss_history["val_accuracy"])
-		plt.ylabel("Accuracy")
-		plt.ylim(0, 1)
-		plt.grid(True)
-	plt.show()
-
+from losses import GaussianNLL, gaussian_nll, sample_mse
 
 class SVI(nn.Module):
 	"""
@@ -346,3 +299,4 @@ class Trainer(nn.Module):
 				self.scheduler.step()
 
 		return self.loss_history
+
