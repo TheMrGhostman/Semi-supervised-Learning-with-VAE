@@ -276,6 +276,7 @@ class Trainer(nn.Module):
 						#self.tb.add_scalar("Loss/Train_per_batch", loss.item(), epoch+0.1*(i+1)//print_every)
 
 			validation_loss=0
+			acc = []
 			self.model.eval( )
 			with torch.no_grad():
 				for j, (validation_sample, y_valid_true) in enumerate(validation_loader, 0):
@@ -284,10 +285,11 @@ class Trainer(nn.Module):
 					y_valid_pred = self.model.forward(validation_sample)
 
 					validation_loss += self.loss_fn(y_valid_pred, y_valid_true).detach().item()
+					acc.append(accuracy_score(y_valid_true.cpu().detach(), torch.argmax(y_valid_pred.cpu().detach(), axis=1)))
 
 			validation_loss /= len(validation_loader)
 			self.loss_history["validation"].append(validation_loss)
-			acc = accuracy_score(y_valid_true.cpu().detach(), torch.argmax(y_valid_pred.cpu().detach(), axis=1))
+			acc = np.mean(acc)
 			self.loss_history["val_accuracy"].append(acc)
 
 			if self.verbose:
