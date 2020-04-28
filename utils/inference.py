@@ -11,7 +11,7 @@ from torch.utils.tensorboard import SummaryWriter
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, f1_score
 
-from losses import GaussianNLL, gaussian_nll, sample_mse
+from .losses import Gaussian_NLL, gaussian_nll, sample_mse
 
 class SVI(nn.Module):
 	"""

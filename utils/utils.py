@@ -6,6 +6,15 @@ import torch.nn.functional as F
 import matplotlib.pyplot as plt
 
 
+class One_Hot(object):
+    def __init__(self, n_classes):
+        self.n_classes = n_classes
+        self.class_matrix = torch.diag(torch.ones(n_classes))
+
+    def __call__(self, p):
+        return self.class_matrix[p]
+
+
 def paremeters_summary(model):
 	s = []
 	for p in model.parameters():
