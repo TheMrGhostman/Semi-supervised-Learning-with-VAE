@@ -2,6 +2,28 @@ import numpy as np
 import torch
 
 
+class SupervisedDataset(torch.utils.data.Dataset):
+	def __init__(self, dataset, labels, transform=None):
+		self.X = torch.tensor(dataset.astype('float32')) if isinstance(dataset, np.ndarray) else dataset.float()
+		self.y = torch.tensor(labels).long() if isinstance(labels, np.ndarray) else labels.float()
+		self.transform = transform
+
+	def __len__(self):
+		return self.X.shape[0]
+
+	def __getitem__(self, idx):
+		if torch.is_tensor(idx):
+			idx = idx.tolist()
+
+		sample_X = self.X[idx] 
+		sample_y = self.y[idx]
+
+		if self.transform:
+			sample_X = self.transform(sample_X)
+
+		return sample_X, sample_y
+
+
 class H_alphaSequences(torch.utils.data.Dataset):
 	def __init__(self, dataset, labels, transform=None):
 		self.X = torch.tensor(dataset.astype('float32'))

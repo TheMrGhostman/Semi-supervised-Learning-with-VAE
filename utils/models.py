@@ -32,7 +32,7 @@ class DeepDenseVAE_mark_I(nn.Module):
 							nn.Linear(in_features=original_dim, out_features=encoder_dims[0]),
 							nn.ReLU(),
 							nn.Linear(in_features=encoder_dims[0], out_features=encoder_dims[1]),
-							nn.ReLU(),
+							nn.ReLU(), 
 							VariationalLayer(in_features=encoder_dims[1], out_features=latent_dim, return_KL=False)
 							)
 		self.decoder =  nn.Sequential(
